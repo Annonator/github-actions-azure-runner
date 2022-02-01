@@ -29,3 +29,15 @@ module "vmss" {
   admin_user          = "actions"
   public_key          = "~/.ssh/id_rsa.pub"
 }
+
+module "function" {
+  source              = "./function"
+  resource_group_name = azurerm_resource_group.rgActionAgents.name
+  location            = azurerm_resource_group.rgActionAgents.location
+  vmss_rg_name        = azurerm_resource_group.rgActionAgents.name
+  vmss_name           = "vmscaleset"
+
+  depends_on = [
+    module.vmss
+  ]
+}
