@@ -6,7 +6,7 @@ resource "random_string" "suffix" {
 }
 
 resource "azurerm_storage_account" "functionStorage" {
-  name                     = "store-${var.name}-${radom_string.suffix}"
+  name                     = "store${var.name}w${random_string.suffix.result}"
   resource_group_name      = var.resource_group_name
   location                 = var.location
   account_tier             = "Standard"
@@ -14,10 +14,12 @@ resource "azurerm_storage_account" "functionStorage" {
 }
 
 resource "azurerm_app_service_plan" "functionPlan" {
-  name                = "plan-${var.name}-${radom_string.suffix}"
+  name                = "plan${var.name}w${random_string.suffix.result}"
   location            = var.location
   resource_group_name = var.resource_group_name
-  kind                = "Linux"
+  kind                = "functionapp"
+  reserved            = true
+
 
   sku {
     tier = "Dynamic"
@@ -26,7 +28,7 @@ resource "azurerm_app_service_plan" "functionPlan" {
 }
 
 resource "azurerm_function_app" "functionApp" {
-  name                       = "app-${var.name}-${radom_string.suffix}"
+  name                       = "app${var.name}w${random_string.suffix.result}"
   location                   = var.location
   resource_group_name        = var.resource_group_name
   app_service_plan_id        = azurerm_app_service_plan.functionPlan.id
@@ -44,4 +46,9 @@ resource "azurerm_function_app" "functionApp" {
     "VMSS_RG"   = var.vmss_rg_name
     "VMSS_NAME" = var.vmss_name
   }
+
+  depends_on = [
+    azurerm_storage_account.functionStorage,
+    azurerm_app_service_plan.functionPlan
+  ]
 }

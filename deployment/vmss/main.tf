@@ -76,7 +76,7 @@ resource "azurerm_virtual_machine_scale_set" "vmss" {
   sku {
     name     = "Standard_F4s_v2"
     tier     = "Standard"
-    capacity = 1
+    capacity = var.scaleset_size
   }
 
   storage_profile_image_reference {

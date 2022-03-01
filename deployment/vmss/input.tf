@@ -34,3 +34,8 @@ variable "disk_size" {
   description = "The Size of the Datadisk attached to each vm"
   default     = 10
 }
+
+variable "scaleset_size" {
+  description = "The Size of the scaleset"
+  default     = 1
+}
