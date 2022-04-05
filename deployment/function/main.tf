@@ -13,29 +13,22 @@ resource "azurerm_storage_account" "functionStorage" {
   account_replication_type = "LRS"
 }
 
-resource "azurerm_app_service_plan" "functionPlan" {
+resource "azurerm_service_plan" "functionPlan" {
   name                = "plan${var.name}w${random_string.suffix.result}"
   location            = var.location
   resource_group_name = var.resource_group_name
-  kind                = "functionapp"
-  reserved            = true
-
-
-  sku {
-    tier = "Dynamic"
-    size = "Y1"
-  }
+  os_type             = "Linux"
+  sku_name            = "Y1"
 }
 
-resource "azurerm_function_app" "functionApp" {
+resource "azurerm_linux_function_app" "functionApp" {
   name                       = "app${var.name}w${random_string.suffix.result}"
   location                   = var.location
   resource_group_name        = var.resource_group_name
-  app_service_plan_id        = azurerm_app_service_plan.functionPlan.id
+  service_plan_id            = azurerm_app_service_plan.functionPlan.id
   storage_account_name       = azurerm_storage_account.functionStorage.name
   storage_account_access_key = azurerm_storage_account.functionStorage.primary_access_key
-  os_type                    = "linux"
-  version                    = "~4"
+  function_extension_version = "~4"
   site_config {
     dotnet_framework_version = "v6.0"
   }
