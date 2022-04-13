@@ -26,6 +26,10 @@ variable "admin_user" {
   default     = "azureuser"
 }
 
+variable "admin_password" {
+  description = "Password for the users VMSS"
+}
+
 variable "public_key" {
   description = "path to you local public key you want to use to login in to servers"
 }

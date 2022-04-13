@@ -33,6 +33,7 @@ module "vmss" {
   resource_group_name = azurerm_resource_group.rgActionAgents.name
   location            = azurerm_resource_group.rgActionAgents.location
   admin_user          = "actions"
+  admin_password      = ""
   public_key          = "~/.ssh/id_rsa.pub"
   scaleset_size       = 3
 }

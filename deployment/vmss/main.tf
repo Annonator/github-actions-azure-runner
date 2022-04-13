@@ -5,126 +5,92 @@ resource "random_string" "fqdn" {
   number  = false
 }
 
-resource "azurerm_virtual_network" "vmss" {
-  name                = "vmss-vnet"
-  address_space       = ["10.0.0.0/16"]
-  location            = var.location
+resource "azurerm_virtual_network" "vnet-agents" {
+  name                = "vnet-agents-prod-001"
   resource_group_name = var.resource_group_name
-  tags                = var.tags
+  location            = var.location
+  address_space       = ["10.0.0.0/16"]
 }
 
-resource "azurerm_subnet" "vmss" {
-  name                 = "vmss-subnet"
+resource "azurerm_subnet" "vnet-subnet" {
+  name                 = "subnet-agents-prod-001"
   resource_group_name  = var.resource_group_name
-  virtual_network_name = azurerm_virtual_network.vmss.name
+  virtual_network_name = azurerm_virtual_network.vnet-agents.name
   address_prefixes     = ["10.0.2.0/24"]
 }
 
-resource "azurerm_public_ip" "vmss" {
-  name                = "vmss-public-ip"
+resource "azurerm_public_ip" "pip-agents" {
+  name                = "pip-agents-001"
   location            = var.location
   resource_group_name = var.resource_group_name
-  allocation_method   = "Static"
   domain_name_label   = random_string.fqdn.result
-  tags                = var.tags
+  allocation_method   = "Dynamic"
 }
 
-resource "azurerm_lb" "vmss" {
-  name                = "vmss-lb"
+resource "azurerm_lb" "lb-public" {
+  name                = "lb-agents-prod-001"
   location            = var.location
   resource_group_name = var.resource_group_name
 
   frontend_ip_configuration {
-    name                 = "PublicIPAddress"
-    public_ip_address_id = azurerm_public_ip.vmss.id
+    name                 = "pip-agents-prod-001"
+    public_ip_address_id = azurerm_public_ip.pip-agents.id
   }
-
-  tags = var.tags
 }
 
-resource "azurerm_lb_backend_address_pool" "bpepool" {
-  loadbalancer_id = azurerm_lb.vmss.id
+resource "azurerm_lb_backend_address_pool" "lb-backendpool" {
+  loadbalancer_id = azurerm_lb.lb-public.id
   name            = "BackEndAddressPool"
 }
 
-resource "azurerm_lb_probe" "vmss" {
-  resource_group_name = var.resource_group_name
-  loadbalancer_id     = azurerm_lb.vmss.id
-  name                = "ssh-running-probe"
-  port                = var.application_port
+resource "azurerm_lb_probe" "lb-probe" {
+  loadbalancer_id = azurerm_lb.lb-public.id
+  name            = "running-probe"
+  port            = var.application_port
 }
 
-resource "azurerm_lb_rule" "lbnatrule" {
-  resource_group_name            = var.resource_group_name
-  loadbalancer_id                = azurerm_lb.vmss.id
-  name                           = "http"
+resource "azurerm_lb_rule" "lb-public-rule" {
+  loadbalancer_id                = azurerm_lb.lb-public.id
+  name                           = "LBRule"
   protocol                       = "Tcp"
   frontend_port                  = var.application_port
   backend_port                   = var.application_port
-  backend_address_pool_ids       = [azurerm_lb_backend_address_pool.bpepool.id]
-  frontend_ip_configuration_name = "PublicIPAddress"
-  probe_id                       = azurerm_lb_probe.vmss.id
+  backend_address_pool_ids       = [azurerm_lb_backend_address_pool.lb-backendpool.id]
+  frontend_ip_configuration_name = azurerm_lb.lb-public.frontend_ip_configuration[0].name
+  probe_id                       = azurerm_lb_probe.lb-probe.id
 }
 
-resource "azurerm_virtual_machine_scale_set" "vmss" {
-  name                = "vmscaleset"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  upgrade_policy_mode = "Manual"
-  overprovision       = false
+resource "azurerm_windows_virtual_machine_scale_set" "vmss-agents" {
+  name                 = "vmss-agents-prod-001"
+  resource_group_name  = var.resource_group_name
+  location             = var.location
+  sku                  = "Standard_F4s_v2"
+  instances            = var.scaleset_size
+  admin_password       = var.admin_password
+  admin_username       = "agents"
+  computer_name_prefix = "agent-"
 
-  sku {
-    name     = "Standard_F4s_v2"
-    tier     = "Standard"
-    capacity = var.scaleset_size
-  }
-
-  storage_profile_image_reference {
-    publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "16.04-LTS"
+  source_image_reference {
+    publisher = "MicrosoftWindowsServer"
+    offer     = "WindowsServer"
+    sku       = "2022-datacenter-core"
     version   = "latest"
   }
 
-  storage_profile_os_disk {
-    name              = ""
-    caching           = "ReadWrite"
-    create_option     = "FromImage"
-    managed_disk_type = "Standard_LRS"
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
   }
-
-  storage_profile_data_disk {
-    lun           = 0
-    caching       = "ReadWrite"
-    create_option = "Empty"
-    disk_size_gb  = var.disk_size
-  }
-
-  os_profile {
-    computer_name_prefix = "ghaction"
-    admin_username       = var.admin_user
-  }
-
-  os_profile_linux_config {
-    disable_password_authentication = true
-
-    ssh_keys {
-      path     = "/home/${var.admin_user}/.ssh/authorized_keys"
-      key_data = file(var.public_key)
-    }
-  }
-
-  network_profile {
-    name    = "terraformnetworkprofile"
-    primary = true
+  network_interface {
+    name                          = "nic-agents-prod"
+    enable_accelerated_networking = true
+    primary                       = true
 
     ip_configuration {
-      name                                   = "IPConfiguration"
-      subnet_id                              = azurerm_subnet.vmss.id
-      load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.bpepool.id]
+      name                                   = "internal"
       primary                                = true
+      subnet_id                              = azurerm_subnet.vnet-subnet.id
+      load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.lb-backendpool.id]
     }
   }
-
-  tags = var.tags
 }

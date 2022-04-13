@@ -22,15 +22,18 @@ resource "azurerm_service_plan" "functionPlan" {
 }
 
 resource "azurerm_linux_function_app" "functionApp" {
-  name                       = "app${var.name}w${random_string.suffix.result}"
-  location                   = var.location
-  resource_group_name        = var.resource_group_name
-  service_plan_id            = azurerm_app_service_plan.functionPlan.id
-  storage_account_name       = azurerm_storage_account.functionStorage.name
-  storage_account_access_key = azurerm_storage_account.functionStorage.primary_access_key
-  function_extension_version = "~4"
+  name                        = "app${var.name}w${random_string.suffix.result}"
+  location                    = var.location
+  resource_group_name         = var.resource_group_name
+  service_plan_id             = azurerm_service_plan.functionPlan.id
+  storage_account_name        = azurerm_storage_account.functionStorage.name
+  storage_account_access_key  = azurerm_storage_account.functionStorage.primary_access_key
+  functions_extension_version = "~4"
   site_config {
-    dotnet_framework_version = "v6.0"
+    http2_enabled = true
+    application_stack {
+      dotnet_version = "6.0"
+    }
   }
   identity {
     type = "SystemAssigned"
@@ -42,6 +45,6 @@ resource "azurerm_linux_function_app" "functionApp" {
 
   depends_on = [
     azurerm_storage_account.functionStorage,
-    azurerm_app_service_plan.functionPlan
+    azurerm_service_plan.functionPlan
   ]
 }
